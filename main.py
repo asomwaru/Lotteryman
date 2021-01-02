@@ -67,18 +67,19 @@ async def react(ctx):
 
 @bot.command(aliases=["char", "c", "ch"])
 async def character(ctx, *message):
-    if '(' in message[-1]:
-        pass
-
     name = " ".join(message).strip()
 
     character = mudae.characters.find_one({"name": name})
 
     if character is None:
-        character = mudae.characters.find_one({"name": {"$regex": f"^{name}", "$options": 'i'}})
+        name = " ".join(message).strip()
 
-    if character is None:
-        for x in mudae.characters.find({"name": {"$regex": f"^{' '.join(message[:-1])}", "$options": 'i'}}):
+        if '(' in name:
+            name = ' '.join(message[:-1])
+        else:
+            name = ' '.join(message[:])
+
+        for x in mudae.characters.find({"name": {"$regex": f"^{name}", "$options": 'i'}}):
             name = " ".join(message).lower()
 
             if name == x['name'].lower():
@@ -88,7 +89,9 @@ async def character(ctx, *message):
             await ctx.send("Cannot find character :(")
             return
 
-    person = discord.Embed(title=f"{character['name']}", color=0x00bb7f)
+    r = lambda: random.randint(0, 255)
+    color = '%02X%02X%02X' % (r(), r(), r())
+    person = discord.Embed(title=f"{character['name']}", color=int(color, 16))
 
     person.add_field(name="Series", value=f"*{character['series']}*", inline=False)
     person.add_field(name="Rank 👑", value=f"#{character['rank']}", inline=True)
@@ -111,5 +114,6 @@ async def destroy(ctx):
         await ctx.send("Goodbye")
         await bot.logout()
 
+
 print("Good day!")
-bot.run("Nzg4MTE5MzQ4MDQwMTcxNTQz.X9e3Vw.rPI_h43B12uH4ofSduvVVWbsp04")
+bot.run(configs["login_token"])
