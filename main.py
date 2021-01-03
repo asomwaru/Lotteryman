@@ -65,7 +65,7 @@ async def react(ctx):
     await ctx.send(f"The winner of the lottery is {winner.mention}")
 
 
-@bot.command(aliases=["char", "c", "ch"])
+@bot.command(aliases=["char", "c", "ch", "im"])
 async def character(ctx, *message):
     name = " ".join(message).strip()
 
