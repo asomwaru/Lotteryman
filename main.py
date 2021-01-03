@@ -104,7 +104,7 @@ async def character(ctx, *message):
     else:
         num = str(num)
 
-    person.add_field(name="Rank 👑", value=f"#{character['rank']}", inline=True)
+    person.add_field(name="Rank 👑", value=f"#{num}", inline=True)
 
     num = character['kakera']
     if num >= 1000:
@@ -115,7 +115,7 @@ async def character(ctx, *message):
     else:
         num = str(num)
 
-    person.add_field(name="Kakera<:kakeraR:780263031203823658>", value=f"{character['kakera']}ka", inline=True)
+    person.add_field(name="Kakera<:kakeraR:780263031203823658>", value=f"{num}ka", inline=True)
 
     person.set_image(url=f"{character['image']}")
     person.set_footer(text=character['owner'])
