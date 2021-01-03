@@ -94,7 +94,27 @@ async def character(ctx, *message):
     person = discord.Embed(title=f"{character['name']}", color=int(color, 16))
 
     person.add_field(name="Series", value=f"*{character['series']}*", inline=False)
+
+    num = character['rank']
+    if num >= 1000:
+        thousand = str(num)[:-3]
+        hundred = str(num)[-3:]
+
+        num = f"{thousand},{hundred}"
+    else:
+        num = str(num)
+
     person.add_field(name="Rank 👑", value=f"#{character['rank']}", inline=True)
+
+    num = character['kakera']
+    if num >= 1000:
+        thousand = str(num)[:-3]
+        hundred = str(num)[-3:]
+
+        num = f"{thousand},{hundred}"
+    else:
+        num = str(num)
+
     person.add_field(name="Kakera<:kakeraR:780263031203823658>", value=f"{character['kakera']}ka", inline=True)
 
     person.set_image(url=f"{character['image']}")
