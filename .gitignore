@@ -2,3 +2,5 @@ venv
 temp.py
 .idea
 config.json
+out.txt
+wishes.json

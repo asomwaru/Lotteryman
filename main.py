@@ -14,6 +14,10 @@ configs = {}
 with open("config.json", "r") as fh:
     configs = json.load(fh)
 
+wishes = {}
+with open("wishes.json", "r") as fh:
+    wishes = json.load(fh)
+
 client = MongoClient(f"{configs['login_string']}")
 mudae = client["mudaeDB"]
 
@@ -33,6 +37,30 @@ async def on_error(event, *args, **kwargs):
 @bot.event
 async def on_ready():
     print("Good day!")
+    await bot.change_presence(status=None, activity=discord.CustomActivity(name="My prefix is :"))
+
+
+# @bot.event
+# async def on_message(message):
+# words = message.content.lower().split()
+# if any(["$wish" in x for x in words]):
+#     character = " ".join(words[1:])
+#     print(character)
+#     pprint(words)
+#     print(str(message.author))
+#     print()
+#
+#     owner = str(message.author)
+#
+#     await asyncio.sleep(2)
+#
+#     if any([x for x in message.reactions if x.emoji == "✅"]):
+#         return
+#
+#     if len([x for x in wishes[owner] if character == x]) >= 1:
+#         return
+#
+#     wishes[owner].append(character)
 
 
 @bot.event
@@ -45,16 +73,33 @@ async def on_raw_reaction_remove(payload):
 
     embed = msg.embeds[0]
 
-    main = embed.fields[0]
-    owner = main.name.split()[0][:-2]
+    owner = None
+    series = None
 
-    main = main.value.split('\n')[-1]
-    main = main.split()
-    name = " ".join(main[1:-1])
-    name = name[1:-1]
+    field = embed.fields[0]
 
-    owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
-    index = owned.index(name) // 15
+    if "Harem" in field.name.split():
+        owner = field.name.split()[:-1]
+        owner = " ".join(owner)[:-2]
+
+        field = field.value.split('\n')[-1]
+        field = field.split()
+        last_char = " ".join(field[1:-1])
+    else:
+        series = field.name
+
+        field = field.value.split('\n')[-1]
+        field = field.split()
+
+        dash = field.index('-')
+        last_char = " ".join(field[1:dash])
+
+    if owner:
+        owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
+        index = owned.index(last_char) // 15
+    else:
+        owned = [x['name'] for x in mudae.characters.find({"series": series}).sort('rank', pymongo.ASCENDING)]
+        index = owned.index(last_char) // 15
 
     if payload.emoji.name in ["⬅", '⬅️']:
         current = (index - 1) * 15
@@ -71,15 +116,26 @@ async def on_raw_reaction_remove(payload):
     embed.remove_field(0)
 
     string = ""
-    for y in mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING):
-        string += f"#**{y['rank']}**: *{y['name']}* **{y['kakera']}ka**\n"
+    if owner:
+        characters = list(
+            mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
-    embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
-    embed.set_footer(text=owner)
+        for y in characters:
+            string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
 
-    url = \
-        list(mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))[
-            0]['image']
+        embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
+        embed.set_footer(text=owner)
+
+    else:
+        characters = list(
+            mudae.characters.find({"series": series}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
+
+        for y in characters:
+            string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
+
+        embed.add_field(name=f"{series}", value=string, inline=True)
+
+    url = characters[0]['image']
     embed.set_thumbnail(url=url)
 
     await msg.edit(embed=embed)
@@ -98,16 +154,33 @@ async def on_reaction_add(reaction, user):
     if len(embed.fields) > 1:
         return
 
-    last = embed.fields[0]
-    owner = last.name.split()[0][:-2]
+    owner = None
+    series = None
 
-    last = last.value.split('\n')[-1]
-    last = last.split()
-    name = " ".join(last[1:-1])
-    name = name[1:-1]
+    field = embed.fields[0]
 
-    owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
-    index = owned.index(name) // 15
+    if "Harem" in field.name.split():
+        owner = field.name.split()[:-1]
+        owner = " ".join(owner)[:-2]
+
+        field = field.value.split('\n')[-1]
+        field = field.split()
+        last_char = " ".join(field[1:-1])
+    else:
+        series = field.name
+
+        field = field.value.split('\n')[-1]
+        field = field.split()
+
+        dash = field.index('-')
+        last_char = " ".join(field[1:dash])
+
+    if owner:
+        owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
+        index = owned.index(last_char) // 15
+    else:
+        owned = [x['name'] for x in mudae.characters.find({"series": series}).sort('rank', pymongo.ASCENDING)]
+        index = owned.index(last_char) // 15
 
     if reaction.emoji == "⬅":
         current = (index - 1) * 15
@@ -123,22 +196,33 @@ async def on_reaction_add(reaction, user):
     embed.remove_field(0)
 
     string = ""
-    for y in mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank',
-                                                                                  pymongo.ASCENDING):
-        string += f"#**{y['rank']}**: *{y['name']}* **{y['kakera']}ka**\n"
 
-    embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
-    embed.set_footer(text=owner)
+    if owner:
+        characters = list(
+            mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
-    url = \
-        list(mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))[
-            0]['image']
+        for y in characters:
+            string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
+
+        embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
+        embed.set_footer(text=owner)
+
+    else:
+        characters = list(
+            mudae.characters.find({"series": series}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
+
+        for y in characters:
+            string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
+
+        embed.add_field(name=f"{series}", value=string, inline=True)
+
+    url = characters[0]['image']
     embed.set_thumbnail(url=url)
 
     await msg.edit(embed=embed)
 
 
-@bot.command(aliases=["owns", "owned", 'o'])
+@bot.command(aliases=["owns", "owned", "o", "mmrk"])
 async def owner(ctx, *message):
     id = None
 
@@ -208,14 +292,13 @@ async def owner(ctx, *message):
 
     string = "\n"
     for y in mudae.characters.find({"owner": owner}, limit=15).sort('rank', pymongo.ASCENDING):
-        string += f"#**{y['rank']}**: *{y['name']}* **{y['kakera']}ka**\n"
+        string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
 
     person.add_field(name=f"{owner}'s Harem", value=string, inline=True)
 
     person.set_footer(text=owner)
 
-    url = \
-        list(mudae.characters.find({"owner": owner}, limit=1).sort('rank', pymongo.ASCENDING))[0]['image']
+    url = list(mudae.characters.find({"owner": owner}, limit=1).sort('rank', pymongo.ASCENDING))[0]['image']
     person.set_thumbnail(url=url)
 
     msg = await ctx.send(embed=person)
@@ -223,39 +306,31 @@ async def owner(ctx, *message):
     await msg.add_reaction(emoji='➡')
 
 
-@bot.command()
-async def react(ctx):
-    roles = list(map(str, ctx.message.author.roles))
+@bot.command(aliases=["s"])
+async def series(ctx, *message):
+    series = " ".join(message).lower()
 
-    if len(list(filter(lambda x: x in configs['valid_roles'], roles))) <= 0:
-        await ctx.send("You are not a valid user!")
+    person = discord.Embed(color=int(rand_col(), 16))
+    available_series = list(mudae.characters.distinct("series"))
+
+    if not any([series == x.lower() for x in available_series]):
+        await ctx.send("Series not found :(")
         return
+    else:
+        series = [x for x in available_series if x.lower() == series][0]
 
-    embed = discord.Embed(title="React to me to partake in the lottery", description="", color=0x00bb7f)
+    string = "\n"
+    for y in mudae.characters.find({"series": series}, limit=15).sort('rank', pymongo.ASCENDING):
+        string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
 
-    msg = await ctx.send(embed=embed)
+    person.add_field(name=f"{series}", value=string, inline=True)
 
-    # await msg.add_reaction(emoji='')
-    await asyncio.sleep(5)
+    url = list(mudae.characters.find({"series": series}, limit=1).sort('rank', pymongo.ASCENDING))[0]['image']
+    person.set_thumbnail(url=url)
 
-    msg = await msg.channel.fetch_message(msg.id)
-
-    users = [y for x in msg.reactions async for y in x.users()]
-    users = list(set(users))
-    users = [x for x in users if str(x) != "Lotteryman#2019"]
-
-    people = discord.Embed(title="Users Reacted: ", color=0x00bb7f)
-    people.set_image(
-        url="https://cdn.discordapp.com/avatars/788119348040171543/51160a680f2e1106b5510b7379f467a4.png?size=1024")
-
-    for x in users:
-        people.add_field(name=f"{str(x)}", value="ㅤ", inline=True)
-
-    await ctx.send(embed=people)
-
-    winner = random.choice(users)
-
-    await ctx.send(f"The winner of the lottery is {winner.mention}")
+    msg = await ctx.send(embed=person)
+    await msg.add_reaction(emoji='⬅')
+    await msg.add_reaction(emoji='➡')
 
 
 @bot.command(aliases=["char", "c", "ch", "im"])
@@ -331,6 +406,62 @@ async def people(ctx):
     await asyncio.sleep(2)
 
 
+@bot.command(aliases=["sr", "ts"])
+async def server_rank(ctx):
+    people = discord.Embed(color=int(rand_col(), 16))
+
+    owners = []
+    for i, x in enumerate(mudae.get_collection(name="characters").distinct("owner")):
+        characters = [x['rank'] for x in mudae.characters.find({"owner": x}, limit=15).sort('rank', pymongo.ASCENDING)]
+        owners.append([x, sum(characters)])
+
+    owners = list(sorted(owners, key=lambda x: x[1]))
+
+    string = ""
+    for i, x in enumerate(owners):
+        string += f"**{i + 1}**: *{x[0]}* - **{x[1]}**\n"
+
+    people.add_field(name=f"User Ranks", value=string, inline=True)
+
+    await ctx.send(embed=people)
+
+    await asyncio.sleep(2)
+
+
+@bot.command()
+async def react(ctx):
+    roles = list(map(str, ctx.message.author.roles))
+
+    if len(list(filter(lambda x: x in configs['valid_roles'], roles))) <= 0:
+        await ctx.send("You are not a valid user!")
+        return
+
+    embed = discord.Embed(title="React to me to partake in the lottery", description="", color=0x00bb7f)
+
+    msg = await ctx.send(embed=embed)
+
+    await asyncio.sleep(5)
+
+    msg = await msg.channel.fetch_message(msg.id)
+
+    users = [y for x in msg.reactions async for y in x.users()]
+    users = list(set(users))
+    users = [x for x in users if str(x) != "Lotteryman#2019"]
+
+    people = discord.Embed(title="Users Reacted: ", color=0x00bb7f)
+    people.set_image(
+        url="https://cdn.discordapp.com/avatars/788119348040171543/51160a680f2e1106b5510b7379f467a4.png?size=1024")
+
+    for x in users:
+        people.add_field(name=f"{str(x)}", value="ㅤ", inline=True)
+
+    await ctx.send(embed=people)
+
+    winner = random.choice(users)
+
+    await ctx.send(f"The winner of the lottery is {winner.mention}")
+
+
 @bot.command(aliases=['fu', 'fyip'])
 async def lot_ping(ctx, *message):
     roles = list(map(str, ctx.message.author.roles))
@@ -365,9 +496,8 @@ async def lot_ping(ctx, *message):
 
 @bot.command()
 async def destroy(ctx):
-    r = ctx.message.author.roles
-
-    if "bot dweebs" not in r:
+    roles = list(map(str, ctx.message.author.roles))
+    if len(list(filter(lambda x: x in configs['valid_roles'], roles))) <= 0:
         await ctx.send("You are not a valid user!")
         return
     else:
