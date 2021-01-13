@@ -14,9 +14,9 @@ configs = {}
 with open("config.json", "r") as fh:
     configs = json.load(fh)
 
-wishes = {}
-with open("wishes.json", "r") as fh:
-    wishes = json.load(fh)
+# wishes = {}
+# with open("wishes.json", "r") as fh:
+#     wishes = json.load(fh)
 
 client = MongoClient(f"{configs['login_string']}")
 mudae = client["mudaeDB"]
@@ -42,25 +42,25 @@ async def on_ready():
 
 # @bot.event
 # async def on_message(message):
-# words = message.content.lower().split()
-# if any(["$wish" in x for x in words]):
-#     character = " ".join(words[1:])
-#     print(character)
-#     pprint(words)
-#     print(str(message.author))
-#     print()
+#     words = message.content.lower().split()
+#     if any(["$wish" in x for x in words]):
+#         character = " ".join(words[1:])
+#         print(character)
+#         pprint(words)
+#         print(str(message.author))
+#         print()
 #
-#     owner = str(message.author)
+#         owner = str(message.author)
 #
-#     await asyncio.sleep(2)
+#         await asyncio.sleep(2)
 #
-#     if any([x for x in message.reactions if x.emoji == "✅"]):
-#         return
+#         if any([x for x in message.reactions if x.emoji == "✅"]):
+#             return
 #
-#     if len([x for x in wishes[owner] if character == x]) >= 1:
-#         return
+#         if len([x for x in wishes[owner] if character == x]) >= 1:
+#             return
 #
-#     wishes[owner].append(character)
+#         wishes[owner].append(character)
 
 
 @bot.event
@@ -264,9 +264,16 @@ async def owner(ctx, *message):
         if owner == "¯\_(ツ)_/¯#4793":
             owner = "¯\\_(ツ)_/¯#4793"
 
-        elif len(list(mudae.characters.find_one({"owner": {"$regex": f"^{owner}", "$options": 'i'}}))) < 1:
-            await ctx.send("Owner not found")
-            return
+        elif mudae.characters.find_one({"owner": owner}) is not None:
+            pass
+
+        else:
+            try:
+                if len(list(mudae.characters.find_one({"owner": {"$regex": f"^{owner}", "$options": 'i'}}))) < 1:
+                    await ctx.send("Owner not found")
+                    return
+            except:
+                return
 
     elif len(message) >= 1:
         message = " ".join(message).lower()
@@ -286,6 +293,7 @@ async def owner(ctx, *message):
         owner = person_found[0]
 
     else:
+        await ctx.send("Something went wrong :(")
         return
 
     person = discord.Embed(color=int(rand_col(), 16))
@@ -320,17 +328,20 @@ async def series(ctx, *message):
         series = [x for x in available_series if x.lower() == series][0]
 
     string = "\n"
-    for y in mudae.characters.find({"series": series}, limit=15).sort('rank', pymongo.ASCENDING):
+    characters = list(mudae.characters.find({"series": series}, limit=15).sort('rank', pymongo.ASCENDING))
+    for y in characters:
         string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
 
     person.add_field(name=f"{series}", value=string, inline=True)
 
-    url = list(mudae.characters.find({"series": series}, limit=1).sort('rank', pymongo.ASCENDING))[0]['image']
+    url = characters[0]['image']
     person.set_thumbnail(url=url)
 
     msg = await ctx.send(embed=person)
-    await msg.add_reaction(emoji='⬅')
-    await msg.add_reaction(emoji='➡')
+
+    if len(list(mudae.characters.find({"series": series}).sort('rank', pymongo.ASCENDING))) > 15:
+        await msg.add_reaction(emoji='⬅')
+        await msg.add_reaction(emoji='➡')
 
 
 @bot.command(aliases=["char", "c", "ch", "im"])
@@ -365,10 +376,7 @@ async def character(ctx, *message):
 
     num = character['rank']
     if num >= 1000:
-        thousand = str(num)[:-3]
-        hundred = str(num)[-3:]
-
-        num = f"{thousand},{hundred}"
+        num = f"{str(num)[:-3]},{str(num)[-3:]}"
     else:
         num = str(num)
 
@@ -376,10 +384,7 @@ async def character(ctx, *message):
 
     num = character['kakera']
     if num >= 1000:
-        thousand = str(num)[:-3]
-        hundred = str(num)[-3:]
-
-        num = f"{thousand},{hundred}"
+        num = f"{str(num)[:-3]},{str(num)[-3:]}"
     else:
         num = str(num)
 
@@ -479,7 +484,7 @@ async def lot_ping(ctx, *message):
         for person in people:
             num = random.randint(1, 10)
             for t in range(1, num + 1):
-                await ctx.send(f"{person.mention} has been @'d {t} time(s)")
+                await ctx.send(f"{person.mention} has been pinged {t} time(s)")
 
         return
 
