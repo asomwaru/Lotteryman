@@ -5,28 +5,20 @@ from pprint import pprint
 
 import discord
 import pymongo
+import helper_functions as hp
 from discord.ext import commands
 from pymongo import MongoClient
 
-bot = commands.Bot(command_prefix=":", description="A bot", case_insensitive=True)
+intents = discord.Intents.default()
+intents.members = True
+bot = commands.Bot(command_prefix=":", description="A bot", case_insensitive=True, intents=intents)
 
 configs = {}
 with open("config.json", "r") as fh:
     configs = json.load(fh)
 
-# wishes = {}
-# with open("wishes.json", "r") as fh:
-#     wishes = json.load(fh)
-
 client = MongoClient(f"{configs['login_string']}")
 mudae = client["mudaeDB"]
-
-
-def rand_col():
-    r = lambda: random.randint(0, 255)
-    color = '%02X%02X%02X' % (r(), r(), r())
-
-    return color
 
 
 @bot.event
@@ -40,27 +32,15 @@ async def on_ready():
     await bot.change_presence(status=None, activity=discord.CustomActivity(name="My prefix is :"))
 
 
-# @bot.event
-# async def on_message(message):
-#     words = message.content.lower().split()
-#     if any(["$wish" in x for x in words]):
-#         character = " ".join(words[1:])
-#         print(character)
-#         pprint(words)
-#         print(str(message.author))
-#         print()
-#
-#         owner = str(message.author)
-#
-#         await asyncio.sleep(2)
-#
-#         if any([x for x in message.reactions if x.emoji == "✅"]):
-#             return
-#
-#         if len([x for x in wishes[owner] if character == x]) >= 1:
-#             return
-#
-#         wishes[owner].append(character)
+@bot.listen()
+async def on_message(message):
+    words = message.content.lower().split()
+
+    if any([x in ["$wish", "wd"] for x in words]):
+        character = " ".join(words[1:])
+        owner = str(message.author)
+
+        print(f"{owner}: {character}")
 
 
 @bot.event
@@ -84,15 +64,16 @@ async def on_raw_reaction_remove(payload):
 
         field = field.value.split('\n')[-1]
         field = field.split()
-        last_char = " ".join(field[1:-1])
+
+        last_char = " ".join(field[2:-2])
     else:
         series = field.name
 
         field = field.value.split('\n')[-1]
         field = field.split()
 
-        dash = field.index('-')
-        last_char = " ".join(field[1:dash])
+        dash = field.index('=>')
+        last_char = " ".join(field[2:dash])
 
     if owner:
         owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
@@ -121,7 +102,7 @@ async def on_raw_reaction_remove(payload):
             mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
         for y in characters:
-            string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
+            string += f"#**{y['rank']}** - {y['name']} **{y['kakera']}** ka\n"
 
         embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
         embed.set_footer(text=owner)
@@ -131,7 +112,7 @@ async def on_raw_reaction_remove(payload):
             mudae.characters.find({"series": series}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
         for y in characters:
-            string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
+            string += f"#**{y['rank']}** - {y['name']} => {y['owner']}\n"
 
         embed.add_field(name=f"{series}", value=string, inline=True)
 
@@ -165,20 +146,21 @@ async def on_reaction_add(reaction, user):
 
         field = field.value.split('\n')[-1]
         field = field.split()
-        last_char = " ".join(field[1:-1])
+
+        last_char = " ".join(field[2:-2])
+
+        owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
+        index = owned.index(last_char) // 15
+
     else:
         series = field.name
 
         field = field.value.split('\n')[-1]
         field = field.split()
 
-        dash = field.index('-')
-        last_char = " ".join(field[1:dash])
+        dash = field.index('=>')
+        last_char = " ".join(field[2:dash])
 
-    if owner:
-        owned = [x['name'] for x in mudae.characters.find({"owner": owner}).sort('rank', pymongo.ASCENDING)]
-        index = owned.index(last_char) // 15
-    else:
         owned = [x['name'] for x in mudae.characters.find({"series": series}).sort('rank', pymongo.ASCENDING)]
         index = owned.index(last_char) // 15
 
@@ -202,7 +184,7 @@ async def on_reaction_add(reaction, user):
             mudae.characters.find({"owner": owner}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
         for y in characters:
-            string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
+            string += f"#**{y['rank']}** - {y['name']} **{y['kakera']}** ka\n"
 
         embed.add_field(name=f"{owner}'s Harem", value=string, inline=True)
         embed.set_footer(text=owner)
@@ -212,7 +194,7 @@ async def on_reaction_add(reaction, user):
             mudae.characters.find({"series": series}, limit=15, skip=current).sort('rank', pymongo.ASCENDING))
 
         for y in characters:
-            string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
+            string += f"#**{y['rank']}** - {y['name']} => {y['owner']}\n"
 
         embed.add_field(name=f"{series}", value=string, inline=True)
 
@@ -296,17 +278,19 @@ async def owner(ctx, *message):
         await ctx.send("Something went wrong :(")
         return
 
-    person = discord.Embed(color=int(rand_col(), 16))
+    person = discord.Embed(color=hp.rand_col())
 
     string = "\n"
-    for y in mudae.characters.find({"owner": owner}, limit=15).sort('rank', pymongo.ASCENDING):
-        string += f"#**{y['rank']}**: {y['name']} **{y['kakera']}**ka\n"
+    characters = list(mudae.characters.find({"owner": owner}, limit=15).sort('rank', pymongo.ASCENDING))
+
+    for y in characters:
+        string += f"#**{y['rank']}** - {y['name']} **{y['kakera']}** ka\n"
 
     person.add_field(name=f"{owner}'s Harem", value=string, inline=True)
 
     person.set_footer(text=owner)
 
-    url = list(mudae.characters.find({"owner": owner}, limit=1).sort('rank', pymongo.ASCENDING))[0]['image']
+    url = characters[0]['image']
     person.set_thumbnail(url=url)
 
     msg = await ctx.send(embed=person)
@@ -318,7 +302,7 @@ async def owner(ctx, *message):
 async def series(ctx, *message):
     series = " ".join(message).lower()
 
-    person = discord.Embed(color=int(rand_col(), 16))
+    person = discord.Embed(color=hp.rand_col())
     available_series = list(mudae.characters.distinct("series"))
 
     if not any([series == x.lower() for x in available_series]):
@@ -330,7 +314,7 @@ async def series(ctx, *message):
     string = "\n"
     characters = list(mudae.characters.find({"series": series}, limit=15).sort('rank', pymongo.ASCENDING))
     for y in characters:
-        string += f"#**{y['rank']}**: {y['name']} - {y['owner']}\n"
+        string += f"#**{y['rank']}** - {y['name']} => {y['owner']}\n"
 
     person.add_field(name=f"{series}", value=string, inline=True)
 
@@ -354,7 +338,8 @@ async def character(ctx, *message):
         name = " ".join(message).strip()
 
         if '(' in name:
-            name = ' '.join(message[:-1])
+            parentheses = name.index('(')
+            name = ' '.join(message[:parentheses])
         else:
             name = ' '.join(message[:])
 
@@ -368,26 +353,14 @@ async def character(ctx, *message):
             await ctx.send("Cannot find character :(")
             return
 
-    r = lambda: random.randint(0, 255)
-    color = '%02X%02X%02X' % (r(), r(), r())
-    person = discord.Embed(title=f"{character['name']}", color=int(color, 16))
+    person = discord.Embed(title=f"{character['name']}", color=hp.rand_col())
 
     person.add_field(name="Series", value=f"*{character['series']}*", inline=False)
 
-    num = character['rank']
-    if num >= 1000:
-        num = f"{str(num)[:-3]},{str(num)[-3:]}"
-    else:
-        num = str(num)
-
+    num = hp.format_num(character['rank'])
     person.add_field(name="Rank 👑", value=f"#{num}", inline=True)
 
-    num = character['kakera']
-    if num >= 1000:
-        num = f"{str(num)[:-3]},{str(num)[-3:]}"
-    else:
-        num = str(num)
-
+    num = hp.format_num(character['kakera'])
     person.add_field(name="Kakera<:kakeraR:780263031203823658>", value=f"{num}ka", inline=True)
 
     person.set_image(url=f"{character['image']}")
@@ -398,7 +371,7 @@ async def character(ctx, *message):
 
 @bot.command(aliases=["p"])
 async def people(ctx):
-    people = discord.Embed(color=int(rand_col(), 16))
+    people = discord.Embed(color=hp.rand_col())
 
     string = ""
     for x in mudae.get_collection(name="characters").distinct("owner"):
@@ -411,9 +384,46 @@ async def people(ctx):
     await asyncio.sleep(2)
 
 
+@bot.command(aliases=["st"])
+async def stats(ctx, *message):
+    if len(message) == 0:
+        return
+
+    name = " ".join(message).lower().strip()
+    series_name = ""
+
+    for x in mudae.characters.distinct("series"):
+        if name == x.lower():
+            series_name = x
+            break
+
+    owners = {}
+    for x in mudae.characters.find({"series": series_name}):
+        if x['owner'] not in owners.keys():
+            owners[x['owner']] = 1
+        else:
+            owners[x['owner']] += 1
+
+    embed = discord.Embed(title=f"", color=hp.rand_col())
+    length = sum(owners.values())
+
+    owners = [[x,y] for x,y in owners.items()]
+    owners = list(sorted(owners, key=lambda x: x[1], reverse=True))
+
+    string = ""
+    for i,x in enumerate(owners):
+        percentage = round((x[1]/length)*100, 2)
+        string += f"#**{i+1}** - *{x[0]}*: **{x[1]}/{length}** ({percentage}%)\n"
+
+    embed.add_field(name=f"Owned percentage of {series_name}", value=f"{length} total characters", inline=False)
+    embed.add_field(name=f"Owners", value=string, inline=True)
+
+    await ctx.send(embed=embed)
+
+
 @bot.command(aliases=["sr", "ts"])
 async def server_rank(ctx):
-    people = discord.Embed(color=int(rand_col(), 16))
+    people = discord.Embed(color=hp.rand_col())
 
     owners = []
     for i, x in enumerate(mudae.get_collection(name="characters").distinct("owner")):
@@ -480,11 +490,39 @@ async def lot_ping(ctx, *message):
 
     person = random.choice(people)
 
-    if len(message) == 1 and 'all' in message and str(ctx.message.author) == "Walrushman#7410":
+    if len(message) == 1 and '@' in message[0]:
+        id = int(message[0][3:-1])
+
+        valid_people = [x for x in people if x.id == id]
+
+        if len(valid_people) != 1:
+            await ctx.send("There was an error :(")
+            return
+
+        person = valid_people[0]
+
+        for x in range(random.randint(3, 15)):
+            await ctx.send(f"{person.mention}")
+
+        return
+
+    elif len(message) == 1 and 'all' in message and str(ctx.message.author) == "Walrushman#7410":
         for person in people:
             num = random.randint(1, 10)
             for t in range(1, num + 1):
                 await ctx.send(f"{person.mention} has been pinged {t} time(s)")
+
+        await ctx.send("Everyone has been pinged multiple times!")
+        await ctx.send("👍")
+
+        return
+
+    elif len(message) == 1 and 'everyone' in message and str(ctx.message.author) == "Walrushman#7410":
+        for person in people:
+            await ctx.send(f"{person.mention} has been pinged")
+
+        await ctx.send("Everyone has been pinged!")
+        await ctx.send("👍")
 
         return
 
